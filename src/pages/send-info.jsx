@@ -1,6 +1,5 @@
 import icon from '@/assets/images/icon.webp';
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { translateText } from '@/utils/translate';
+import { useState, useMemo } from 'react';
 
 const SendInfo = () => {
     const defaultTexts = useMemo(
@@ -12,39 +11,13 @@ const SendInfo = () => {
         []
     );
 
-    const [translatedTexts, setTranslatedTexts] = useState(defaultTexts);
-
-    const translateAllTexts = useCallback(
-        async (targetLang) => {
-            try {
-                const [
-                    translatedTitle,
-                    translatedDesc1,
-                    translatedDesc2,
-                ] = await Promise.all([
-                    translateText(defaultTexts.title, targetLang),
-                    translateText(defaultTexts.description1, targetLang),
-                    translateText(defaultTexts.description2, targetLang),
-                ]);
-
-                setTranslatedTexts({
-                    title: translatedTitle,
-                    description1: translatedDesc1,
-                    description2: translatedDesc2,
-                });
-            } catch {
-                //
-            }
-        },
-        [defaultTexts]
+    // 🚀 Lấy texts từ cache, không dịch lại
+    const translations = JSON.parse(localStorage.getItem('translations'));
+    const [translatedTexts, setTranslatedTexts] = useState(
+        translations?.sendInfo || defaultTexts
     );
 
-    useEffect(() => {
-        const targetLang = localStorage.getItem('targetLang');
-        if (targetLang && targetLang !== 'en') {
-            translateAllTexts(targetLang);
-        }
-    }, [translateAllTexts]);
+    // 🚀 XÓA HẾT hàm dịch và useEffect dịch thuật
 
     return (
         <div className='min-h-screen bg-gray-100'>
